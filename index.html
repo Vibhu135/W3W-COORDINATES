@@ -1,0 +1,189 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <title>Forward Geocoding using the what3words Locator</title>
+
+    <style>
+      html,
+      body,
+      #viewDiv {
+        padding: 0;
+        margin: 0;
+        height: 100%;
+        width: 100%;
+      }
+
+      #search {
+        z-index: 99;
+        position: absolute;
+        top: 15px;
+        left: 60px;
+        padding: 5px;
+        height: 30px;
+        width: 170px;
+        background: rgba(255, 255, 255, 0.8);
+        color: black;
+      }
+      #convertToCoordinateButton {
+        position: absolute;
+        top: 15px;
+        left: 250px;
+        z-index: 99;
+        padding: 5px;
+        height: 30px;
+        width: 170px;
+        background: rgba(80, 78, 78, 0.8);
+        color: white;
+      }
+    </style>
+
+    <link
+      rel="stylesheet"
+      href="https://js.arcgis.com/4.20/esri/themes/light/main.css"
+    />
+    <script src="https://js.arcgis.com/4.20/"></script>
+
+    <script>
+      require([
+        "esri/rest/locator",
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/request",
+        "esri/widgets/Search",
+        "esri/Graphic"
+      ], (locator, Map, MapView, esriRequest, Search, Graphic) => {
+        // Set up a locator task using the what3words Locator
+        const w3wLocator = esriRequest(
+          // First get the token for the what3words Locator
+          "https://arcgis.what3words.com/v2/arcgis/tokens",
+          {
+            method: "get",
+            query: {
+              f: "json",
+              username: "tamilmannan2020@gmail.com", // YOUR-W3W-EMAIL-ADDRESS
+              password: "V88CQGLP", // YOUR-W3W-API-KEY
+              expiration: 10
+            }
+          }
+        ).then((response) => {
+          // Create the Map
+          const map = new Map({
+            basemap: "streets-navigation-vector"
+          });
+          // Create the MapView
+          const view = new MapView({
+            container: "viewDiv",
+            map: map,
+            center: [-0.195521, 51.520847],
+            zoom: 18
+          });
+          /*******************************************************************
+           * This click event sets generic content on the popup not tied to
+           * a layer, graphic, or popupTemplate. The location of the point is
+           * used as input to a reverse geocode method and the resulting
+           * address is printed to the popup content.
+           *******************************************************************/
+          view.popup.autoOpenEnabled = false;
+          // create url for using the what3words Locator to reverse geocode
+          const locatorUrl =
+            "https://arcgis.what3words.com/v2/arcgis/rest/services/what3words_EN_English/GeocodeServer?token=" +
+            response.data.token;
+
+          const c2cButton = document.getElementById(
+            "convertToCoordinateButton"
+          );
+          const searchInput = document.getElementById("search");
+
+          function convertToCoordinates() {
+            // remove all markers
+            view.graphics.removeAll();
+            // Execute a foward geocode using the what3words Locator
+            const address = {
+              what3words: searchInput.value
+            };
+            // grab the parameter address
+            const params = {
+              address: address
+            };
+            locator
+              .addressToLocations(locatorUrl, params)
+              .then((response) => {
+                console.log("locatorTask c2c: " + JSON.stringify(response));
+                // If an address is successfully found, show it in the popup's content
+                const responseaddress = response[0].address; // address
+                const lat = response[0].location.y; // Y COORDINATE
+                const lon = response[0].location.x; // X COORDINATE
+                const point = {
+                  type: "point",
+                  longitude: lon,
+                  latitude: lat
+                };
+                // create a point marker
+                let graphic = new Graphic({
+                  geometry: point,
+                  symbol: {
+                    type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+                    color: "blue",
+                    size: 8
+                  }
+                });
+                // add the point to the map view
+                view.graphics.add(graphic);
+                view.center = point;
+                view.zoom = 17;
+                // open popup when point it is drawn on the map view
+                view.popup.open({
+                  // Set the popup's title to the coordinates of the location
+                  title: "W3W CovertToCoordinates",
+                  location: point, // Set the location of the popup to the clicked location
+                  content:
+                    "what3words address: " +
+                    responseaddress +
+                    "</br>Coordinates: " +
+                    lat +
+                    ", " +
+                    lon
+                });
+              })
+              .catch((error) => {
+                // If the promise fails and no result is found, show a generic message
+                if (error.name == "request:server") {
+                  alert(
+                    "Please make sure you enter correctly your what3words credentials"
+                  );
+                } else {
+                  alert(
+                    "Please enter a valid w3w address or make sure you enter correctly your what3words credentials"
+                  );
+                }
+                // view.popup.close();
+                view.graphics.removeAll();
+              });
+          }
+
+          c2cButton.addEventListener("click", (event) => {
+            convertToCoordinates();
+          });
+        });
+      });
+    </script>
+  </head>
+
+  <body>
+    <div id="viewDiv"></div>
+    <input
+      type="text"
+      id="search"
+      name="search"
+      placeholder="Search for w3w address"
+      value="///filled.count.soap"
+    />
+    <button id="convertToCoordinateButton" type="button">
+      Convert to Coordinates
+    </button>
+  </body>
+</html>
